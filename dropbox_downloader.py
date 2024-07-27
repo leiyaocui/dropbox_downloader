@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--link", required=True, help="Shared link to download from Dropbox"
+        "--link", required=True, help="Shared folder link to download from Dropbox"
     )
     parser.add_argument(
         "--save-dir", required=True, help="Local directory to save files"
