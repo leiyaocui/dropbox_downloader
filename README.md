@@ -13,7 +13,7 @@ pip install dropbox
 python dropbox_downloader.py --link LINK --save-dir SAVE_DIR [--token TOKEN]
 
 options:
-  --link LINK          Shared link to download from Dropbox
+  --link LINK          Shared folder link to download from Dropbox
   --save-dir SAVE_DIR  Local directory to save files
   --token TOKEN        Access token
 ```
