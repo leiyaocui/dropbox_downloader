@@ -142,17 +142,25 @@ def download_entries(
     entries: List[dropbox.files.FileMetadata],
     link: str,
     save_dir: Path,
+    retry: int = 5,
 ):
     for idx, entry in enumerate(entries):
         save_path = save_dir / entry.name
-        try:
-            print(f"Downloading {idx + 1}/{len(entries)}: {entry.name}")
-            dbx.sharing_get_shared_link_file_to_file(save_path, link, f"/{entry.name}")
-            if not check_file_hash(save_path, entry.content_hash):
-                save_path.unlink()
-                raise ValueError("Downloaded {entry.name} hash does not match")
-        except Exception as e:
-            print(f"Failed to download {entry.name}: {e}")
+        for retry_i in range(retry):
+            try:
+                print(f"Downloading {idx + 1}/{len(entries)}: {entry.name}")
+                dbx.sharing_get_shared_link_file_to_file(
+                    save_path, link, f"/{entry.name}"
+                )
+                if not check_file_hash(save_path, entry.content_hash):
+                    save_path.unlink()
+                    raise ValueError("Downloaded {entry.name} hash does not match")
+                break
+            except Exception as e:
+                if retry_i < retry - 1:
+                    print(f"Failed to download {entry.name}: {e}. Retrying...")
+                else:
+                    print(f"Failed to download {entry.name}: {e}. Skipping...")
 
 
 def main(args):
@@ -162,7 +170,7 @@ def main(args):
 
     dbx = dropbox.Dropbox(args.token)
     entries = fetch_entries(dbx, args.link, save_dir)
-    download_entries(dbx, entries, args.link, save_dir)
+    download_entries(dbx, entries, args.link, save_dir, args.retry)
     dbx.close()
 
 
@@ -180,6 +188,9 @@ if __name__ == "__main__":
         "--token",
         default=TOKEN,
         help="Access token (see https://www.dropbox.com/developers/apps)",
+    )
+    parser.add_argument(
+        "--retry", type=int, default=5, help="Number of retries for download"
     )
     args = parser.parse_args()
     if not args.token:
