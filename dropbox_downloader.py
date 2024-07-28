@@ -95,6 +95,28 @@ class DropboxContentHasher:
         return c
 
 
+def authorize_dropbox(app_key: str, app_secret: str):
+    print("\n==== Authorizing Dropbox ====")
+    flow = dropbox.DropboxOAuth2FlowNoRedirect(
+        app_key, app_secret, token_access_type="offline"
+    )
+    authorize_url = flow.start()
+    print("1. Go to: " + authorize_url)
+    print("2. Click 'Allow' (you might have to log in first)")
+    print("3. Copy the authorization code")
+    auth_code = input("Enter the authorization code here: ").strip()
+    auth_res = flow.finish(auth_code)
+
+    dbx = dropbox.Dropbox(
+        oauth2_access_token=auth_res.access_token,
+        oauth2_refresh_token=auth_res.refresh_token,
+        oauth2_access_token_expiration=auth_res.expires_at,
+        app_key=args.app_key,
+        app_secret=args.app_secret,
+    )
+    return dbx
+
+
 def check_file_hash(file_path: Path, expected_hash: str):
     hasher = DropboxContentHasher()
     with open(file_path, "rb") as f:
@@ -107,6 +129,7 @@ def check_file_hash(file_path: Path, expected_hash: str):
 
 
 def fetch_entries(dbx: dropbox.Dropbox, link: str, save_dir: Path):
+    print("\n==== Fetching entries to download ====")
     link = dropbox.files.SharedLink(url=link)
     entries_to_download, total_size, total_num = [], 0, 0
     res = dbx.files_list_folder(path="", shared_link=link)
@@ -118,6 +141,7 @@ def fetch_entries(dbx: dropbox.Dropbox, link: str, save_dir: Path):
                 save_path = save_dir / entry.name
                 if save_path.exists() and save_path.stat().st_size == entry.size:
                     if check_file_hash(save_path, entry.content_hash):
+                        print(f"Skipping: {entry.name} (already downloaded)", end="\r")
                         continue
                 total_size += entry.size
                 entries_to_download.append(entry)
@@ -126,6 +150,10 @@ def fetch_entries(dbx: dropbox.Dropbox, link: str, save_dir: Path):
                 raise NotImplementedError("Recursive download is not supported yet")
             else:
                 raise ValueError(f"Unknown entry type: {type(entry)}")
+            print(
+                f"Found {len(entries_to_download)}/{total_num} files to download",
+                end="\r",
+            )
 
         if not res.has_more:
             break
@@ -144,11 +172,12 @@ def download_entries(
     save_dir: Path,
     retry: int = 5,
 ):
+    print("\n==== Downloading entries ====")
     for idx, entry in enumerate(entries):
         save_path = save_dir / entry.name
         for retry_i in range(retry):
             try:
-                print(f"Downloading {idx + 1}/{len(entries)}: {entry.name}")
+                print(f"Downloading {idx + 1}/{len(entries)}: {entry.name}", end="\r")
                 dbx.sharing_get_shared_link_file_to_file(
                     save_path, link, f"/{entry.name}"
                 )
@@ -158,43 +187,52 @@ def download_entries(
                 break
             except Exception as e:
                 if retry_i < retry - 1:
-                    print(f"Failed to download {entry.name}: {e}. Retrying...")
+                    if dbx.check_and_refresh_access_token():
+                        print("Access token refreshed. Retrying...", end="\r")
+                    else:
+                        print(
+                            f"Failed to download {entry.name}: {e}. Retrying...",
+                            end="\r",
+                        )
                 else:
                     print(f"Failed to download {entry.name}: {e}. Skipping...")
+    print("Download completed")
 
 
 def main(args):
+    dbx = authorize_dropbox(args.app_key, args.app_secret)
+
     save_dir = Path(args.save_dir).absolute()
-    print("Save directory:", save_dir)
+    print("\nSave directory:", save_dir)
     save_dir.mkdir(exist_ok=True, parents=True)
 
-    dbx = dropbox.Dropbox(args.token)
     entries = fetch_entries(dbx, args.link, save_dir)
     download_entries(dbx, entries, args.link, save_dir, args.retry)
+
     dbx.close()
 
 
 if __name__ == "__main__":
-    TOKEN = r""
-
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--app-key",
+        required=True,
+        help="App key (see https://www.dropbox.com/developers/apps)",
+    )
+    parser.add_argument(
+        "--app-secret",
+        required=True,
+        help="App secret (see https://www.dropbox.com/developers/apps)",
+    )
+    parser.add_argument(
+        "--retry", type=int, default=5, help="Number of retries for download"
+    )
     parser.add_argument(
         "--link", required=True, help="Shared folder link to download from Dropbox"
     )
     parser.add_argument(
         "--save-dir", required=True, help="Local directory to save files"
     )
-    parser.add_argument(
-        "--token",
-        default=TOKEN,
-        help="Access token (see https://www.dropbox.com/developers/apps)",
-    )
-    parser.add_argument(
-        "--retry", type=int, default=5, help="Number of retries for download"
-    )
     args = parser.parse_args()
-    if not args.token:
-        print("No access token supplied")
-        exit(1)
 
     main(args)
