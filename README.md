@@ -6,7 +6,7 @@ Download files from a shared dropbox folder link.
 ```shell
 pip install dropbox
 ```
-2. Get an access token from this [link](https://www.dropbox.com/developers/apps).
+2. Get the app key and the app secret from this [link](https://www.dropbox.com/developers/apps).
 
 # Usage
 ```shell
@@ -24,6 +24,7 @@ args:
 ## Features
 - Check integrity
 - Skip existing files
+- Auto refresh access token
 
 ## TODO
 - [ ] Recursively download subfolders
