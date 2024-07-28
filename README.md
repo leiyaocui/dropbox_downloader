@@ -10,12 +10,15 @@ pip install dropbox
 
 # Usage
 ```shell
-python dropbox_downloader.py --link LINK --save-dir SAVE_DIR [--token TOKEN]
+python dropbox_downloader.py --app-key APP_KEY --app-secret APP_SECRET [--retry RETRY] --link LINK --save-dir SAVE_DIR
 
-options:
-  --link LINK          Shared folder link to download from Dropbox
-  --save-dir SAVE_DIR  Local directory to save files
-  --token TOKEN        Access token
+args:
+  --app-key APP_KEY     App key (see https://www.dropbox.com/developers/apps)
+  --app-secret APP_SECRET
+                        App secret (see https://www.dropbox.com/developers/apps)
+  --retry RETRY         Number of retries for download
+  --link LINK           Shared folder link to download from Dropbox
+  --save-dir SAVE_DIR   Local directory to save files
 ```
 
 ## Features
